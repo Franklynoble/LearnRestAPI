@@ -2,12 +2,24 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/Franklynoble/LearnRestAPI/helpers"
+	"github.com/Franklynoble/LearnRestAPI/models"
+	"github.com/gorilla/mux"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
+	// "go.mongodb.org/mongo-driver/bson"
+	// "go.mongodb.org/mongo-driver/mongo"
+	// "go.mongodb.org/mongo-driver/mongo/options"
+	// "go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 //
@@ -18,7 +30,21 @@ import (
 // }
 //
 
+var collection = helpers.Connection()
+
 func main() {
+	r := mux.NewRouter() //
+
+	r.HandleFunc("/api/books", getBooks).Methods("GET")
+	r.HandleFunc("/api/books/{id}", getBook).Methods("GET")
+	r.HandleFunc("/api/books", createBook).Methods("POST")
+	r.HandleFunc("api/books/{id}", updateBook).Methods("PUT")
+	r.HandleFunc("/api/books/{id}", deleteBook).Methods("DELETE")
+
+	config := helpers.Connection()
+
+	fmt.Println(config)
+	//log.Fatal(http.ListenAndServe(config.Addr, nil))
 }
 
 func getAllDocuments() {
@@ -106,5 +132,154 @@ func mainConnection() {
 	fmt.Println("displaying the first result from the search filter")
 	fmt.Println(result)
 	getAllDocuments()
+
+}
+
+func getBook(w http.ResponseWriter, r *http.Request) {
+
+	w.Header().Set("Content-Type", "application/json")
+
+	//we created Book Array
+	var book []models.Book
+
+	var params = mux.Vars(r)
+	//convert from string to primitive Object
+
+	id, _ := primitive.ObjectIDFromHex(params["id"])
+	// we create filter. If it is unnecessary to sort data for you, we use bson.M{}
+
+	// bson{}, we passed empty filter. SO we want to get all Data.
+
+	filter := bson.M{"_id": id}
+	err := collection.FindOne(context.TODO(), filter).Decode(&book)
+
+	if err != nil {
+		helpers.GetError(err, w)
+		return
+	}
+	json.NewEncoder(w).Encode(book)
+	// close the cursor once finished
+	//  A Defer statement defers the execution of a function until the surrounding function returns
+	//simply, run cur.close() process but after cur.next() finished .*/
+
+}
+func createBook(w http.ResponseWriter, r *http.Request) {
+
+	w.Header().Set("Content-Type", "application/json")
+
+	var book models.Book
+
+	// we decode our body request params
+	_ = json.NewDecoder(r.Body).Decode(&book)
+
+	result, err := collection.InsertOne(context.TODO(), book)
+
+	if err != nil {
+		helpers.GetError(err, w)
+		return
+	}
+	json.NewEncoder(w).Encode(result)
+
+}
+
+func updateBook(w http.ResponseWriter, r *http.Request) {
+
+	w.Header().Set("Content-Type", "application/json") //
+
+	var params = mux.Vars(r)
+
+	// get id from params
+	id, _ := primitive.ObjectIDFromHex(params["id"])
+
+	var book models.Book
+
+	// create filter
+	filter := bson.M{"_id": id} //
+
+	//Read Update model from Body   request
+	_ = json.NewDecoder(r.Body).Decode(&book)
+
+	//prepared update model from body request
+
+	update := bson.D{
+		{"$set", bson.D{
+			{"isbn", book.Isbn},
+			{"title", book.Title},
+			{"author", bson.D{
+				{"firstName", book.Author.FirstName},
+				{"lastName", book.Author.LastName},
+			}},
+		}},
+	}
+	err := collection.FindOneAndUpdate(context.TODO(), filter, update).Decode(&book)
+
+	if err != nil {
+		helpers.GetError(err, w)
+		return
+	}
+
+	book.ID = id
+	json.NewEncoder(w).Encode(book)
+	//
+}
+
+func deleteBook(w http.ResponseWriter, r *http.Request) {
+	// set Header
+	w.Header().Set("Content-Type", "application/json")
+	//get params
+
+	var params = mux.Vars(r)
+
+	//string to primitive.ObjectID
+	id, err := primitive.ObjectIDFromHex(params["id"])
+
+	// prepare filter.
+	filter := bson.M{"_id": id}
+	deleteResult, err := collection.DeleteOne(context.TODO(), filter)
+
+	if err != nil {
+		helpers.GetError(err, w)
+		return
+	}
+	json.NewEncoder(w).Encode(deleteResult)
+
+}
+
+func getBooks(w http.ResponseWriter, r *http.Request) {
+
+	w.Header().Set("Content-Type", "application/json")
+
+	//we created Book array
+	var books []models.Book //
+
+	//bson.M{} ,we passed empty filter. so want tp get all data
+
+	cur, err := collection.Find(context.TODO(), bson.M{})
+
+	if err != nil {
+		helpers.GetError(err, w)
+		return
+	}
+
+	defer cur.Close(context.TODO())
+
+	for cur.Next(context.TODO()) {
+
+		// create a value into which the single document can be decoded
+		var book models.Book
+		// & character returns the memory address of the Following variables
+		err := cur.Decode(&book) // decode similar to deserialization process
+
+		if err != nil {
+			log.Fatal(err)
+		}
+		//add item to our array
+		books = append(books, book)
+
+	}
+	if err := cur.Err(); err != nil {
+		log.Fatal(err)
+	}
+	json.NewEncoder(w).Encode(books) // encode similar to serialize Process
 
 }
