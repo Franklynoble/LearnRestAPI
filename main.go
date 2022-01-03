@@ -29,6 +29,18 @@ import (
 // fmt.Fprintf(w, "API is up and running")
 // }
 //
+func init() {
+	//usersCollection := client.Database("testing").Collection("users")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://127.0.0.1:27017/"))
+	if err != nil {
+		panic(err)
+	}
+	if err := client.Ping(context.TODO(), readpref.Primary()); err != nil {
+		panic(err)
+	}
+	fmt.Println("Connected!")
+
+}
 
 var collection = helpers.Connection()
 
