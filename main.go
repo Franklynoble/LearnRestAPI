@@ -19,7 +19,7 @@ import (
 	// "go.mongodb.org/mongo-driver/bson"
 	// "go.mongodb.org/mongo-driver/mongo"
 	// "go.mongodb.org/mongo-driver/mongo/options"
-	// "go.mongodb.org/mongo-driver/mongo/readpref"
+	//"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 //
@@ -38,7 +38,7 @@ func init() {
 	if err := client.Ping(context.TODO(), readpref.Primary()); err != nil {
 		panic(err)
 	}
-	fmt.Println("Connected!")
+	fmt.Println("Connected! from  init")
 
 }
 
@@ -49,13 +49,16 @@ func main() {
 
 	r.HandleFunc("/api/books", getBooks).Methods("GET")
 	r.HandleFunc("/api/books/{id}", getBook).Methods("GET")
-	r.HandleFunc("/api/books", createBook).Methods("POST")
-	r.HandleFunc("api/books/{id}", updateBook).Methods("PUT")
-	r.HandleFunc("/api/books/{id}", deleteBook).Methods("DELETE")
+	r.HandleFunc("/api/books", createBook).Methods("POST")        // this is working
+	r.HandleFunc("api/books/{id}", updateBook).Methods("PUT")     // this is not working yet
+	r.HandleFunc("/api/books/{id}", deleteBook).Methods("DELETE") // this is working
 
-	config := helpers.Connection()
+	log.Fatal(http.ListenAndServe(":8000", r))
 
-	fmt.Println(config)
+	//	config := helpers.Connection()
+
+	//fmt.Println(config)
+
 	//log.Fatal(http.ListenAndServe(config.Addr, nil))
 }
 
@@ -147,34 +150,6 @@ func mainConnection() {
 
 }
 
-func getBook(w http.ResponseWriter, r *http.Request) {
-
-	w.Header().Set("Content-Type", "application/json")
-
-	//we created Book Array
-	var book []models.Book
-
-	var params = mux.Vars(r)
-	//convert from string to primitive Object
-
-	id, _ := primitive.ObjectIDFromHex(params["id"])
-	// we create filter. If it is unnecessary to sort data for you, we use bson.M{}
-
-	// bson{}, we passed empty filter. SO we want to get all Data.
-
-	filter := bson.M{"_id": id}
-	err := collection.FindOne(context.TODO(), filter).Decode(&book)
-
-	if err != nil {
-		helpers.GetError(err, w)
-		return
-	}
-	json.NewEncoder(w).Encode(book)
-	// close the cursor once finished
-	//  A Defer statement defers the execution of a function until the surrounding function returns
-	//simply, run cur.close() process but after cur.next() finished .*/
-
-}
 func createBook(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
@@ -194,35 +169,70 @@ func createBook(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func updateBook(w http.ResponseWriter, r *http.Request) {
+func getBook(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Set("Content-Type", "application/json") //
+	w.Header().Set("Content-Type", "application/json")
+
+	//we created Book Array
+	var book models.Book
+
+	var params = mux.Vars(r)
+	//convert from string to primitive Object
+
+	id, _ := primitive.ObjectIDFromHex(params["id"])
+
+	// if err != nil {
+	// log.Println(err)
+	// }
+	//	we create filter. If it is unnecessary to sort data for you, we use bson.M{}
+
+	// bson{}, we passed empty filter. SO we want to get all Data.
+
+	filter := bson.M{"_id": id}
+	err := collection.FindOne(context.TODO(), filter).Decode(&book)
+
+	if err != nil {
+		helpers.GetError(err, w)
+		fmt.Println("Error From get Method")
+		return
+	}
+	err = json.NewEncoder(w).Encode(book)
+	if err != nil {
+		fmt.Println("error can not decode to document")
+	}
+	// close the cursor once finished
+	//  A Defer statement defers the execution of a function until the surrounding function returns
+	//simply, run cur.close() process but after cur.next() finished .*/
+
+}
+func updateBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
 
 	var params = mux.Vars(r)
 
-	// get id from params
+	//Get id from parameters
 	id, _ := primitive.ObjectIDFromHex(params["id"])
 
 	var book models.Book
 
-	// create filter
-	filter := bson.M{"_id": id} //
+	// Create filter
+	filter := bson.M{"_id": id}
 
-	//Read Update model from Body   request
+	// Read update model from body request
 	_ = json.NewDecoder(r.Body).Decode(&book)
 
-	//prepared update model from body request
-
+	// prepare update model.
 	update := bson.D{
 		{"$set", bson.D{
 			{"isbn", book.Isbn},
 			{"title", book.Title},
 			{"author", bson.D{
-				{"firstName", book.Author.FirstName},
-				{"lastName", book.Author.LastName},
+				{"firstname", book.Author.FirstName},
+				{"lastname", book.Author.LastName},
 			}},
 		}},
 	}
+
 	err := collection.FindOneAndUpdate(context.TODO(), filter, update).Decode(&book)
 
 	if err != nil {
@@ -231,8 +241,8 @@ func updateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	book.ID = id
+
 	json.NewEncoder(w).Encode(book)
-	//
 }
 
 func deleteBook(w http.ResponseWriter, r *http.Request) {
