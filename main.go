@@ -50,7 +50,7 @@ func main() {
 	r.HandleFunc("/api/books", getBooks).Methods("GET")
 	r.HandleFunc("/api/books/{id}", getBook).Methods("GET")
 	r.HandleFunc("/api/books", createBook).Methods("POST")        // this is working
-	r.HandleFunc("api/books/{id}", updateBook).Methods("PUT")     // this is not working yet
+	r.HandleFunc("/api/books/{id}", updateBooki).Methods("PATCH") // this is not working yet
 	r.HandleFunc("/api/books/{id}", deleteBook).Methods("DELETE") // this is working
 
 	log.Fatal(http.ListenAndServe(":9000", r))
@@ -194,8 +194,11 @@ func getBook(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		helpers.GetError(err, w)
 		fmt.Println("Error From get Method")
-		return
+
 	}
+
+	fmt.Println("from get")
+
 	err = json.NewEncoder(w).Encode(book)
 	if err != nil {
 		fmt.Println("error can not decode to document")
@@ -205,13 +208,19 @@ func getBook(w http.ResponseWriter, r *http.Request) {
 	//simply, run cur.close() process but after cur.next() finished .*/
 
 }
-func updateBook(w http.ResponseWriter, r *http.Request) {
+
+func updateBooki(w http.ResponseWriter, r *http.Request) {
+
 	w.Header().Set("Content-Type", "application/json")
 
 	var params = mux.Vars(r)
 
+	fmt.Println(params)
+
 	//Get id from parameters
+
 	id, _ := primitive.ObjectIDFromHex(params["id"])
+	fmt.Println(id)
 
 	var book models.Book
 
@@ -219,9 +228,26 @@ func updateBook(w http.ResponseWriter, r *http.Request) {
 	filter := bson.M{"_id": id}
 
 	// Read update model from body request
-	_ = json.NewDecoder(r.Body).Decode(&book)
+	err := json.NewDecoder(r.Body).Decode(&book)
+
+	if err != nil {
+		log.Println(err)
+	}
 
 	// prepare update model.
+	// update := bson.D{{"$set",
+	// bson.D{Key: "isbn", Value: book.Isbn},
+	// {Key: "title", Value: book.Title},
+	// },
+	//
+	//  {"author", bson.D{
+	//  {Key:"firstname", Value: book.Author.FirstName},
+	//  {Key:"lastname", Value:book.Author.LastName},
+	//  }},
+	//
+	//
+	//
+	//
 	update := bson.D{
 		{"$set", bson.D{
 			{"isbn", book.Isbn},
@@ -233,16 +259,18 @@ func updateBook(w http.ResponseWriter, r *http.Request) {
 		}},
 	}
 
-	err := collection.FindOneAndUpdate(context.TODO(), filter, update).Decode(&book)
+	err = collection.FindOneAndUpdate(context.TODO(), filter, update).Decode(&book)
 
 	if err != nil {
+		fmt.Println("error from update")
 		helpers.GetError(err, w)
-		return
+
 	}
 
 	book.ID = id
 
 	json.NewEncoder(w).Encode(book)
+
 }
 
 func deleteBook(w http.ResponseWriter, r *http.Request) {
